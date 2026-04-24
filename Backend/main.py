@@ -8,11 +8,14 @@ from fastapi.responses import StreamingResponse, Response
 import io
 import json
 import os
+import requests
 
 from services.parser import extract_sections
 from services.diff import compare_sections
 from services.exporter import generate_docx
 from services.prompt import SYSTEM_PROMPT
+from services.plan_parser import extract_plan_data
+from services.plan_validator import validate_fd_against_plan
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
@@ -38,16 +41,42 @@ async def upload(old_doc: UploadFile = File(...), new_template: UploadFile = Fil
     return {"sections": diff}
 
 
+@app.post("/validate")
+async def validate(fd_doc: UploadFile = File(...), plan_doc: UploadFile = File(...)):
+    fd_bytes = io.BytesIO(await fd_doc.read())
+    plan_bytes = io.BytesIO(await plan_doc.read())
+
+    fd_sections = extract_sections(fd_bytes)
+    plan_data = extract_plan_data(plan_bytes)
+    conflicts = validate_fd_against_plan(fd_sections, plan_data)
+
+    return {
+        "plan_data": plan_data,
+        "conflicts": conflicts,
+        "has_errors": any(c["severitate"] == "error" for c in conflicts),
+    }
+
+
 @app.post("/chat")
 async def chat(data: dict):
     messages = data.get("messages", [])
     document = data.get("document", "")
+    plan_data = data.get("plan_data", {})
 
-    system = SYSTEM_PROMPT.format(document=document)
+    plan_context = (
+        f"""
+    Date din Planul de Învățământ (SURSA DE ADEVĂR):
+    - Credite: {plan_data.get('credite', 'necunoscut')}
+    - Tip evaluare: {plan_data.get('tip_evaluare', 'necunoscut')}
+    - Competențe profesionale: {', '.join(plan_data.get('competente_profesionale', []))}
+    """
+        if plan_data
+        else ""
+    )
+
+    system = SYSTEM_PROMPT.format(document=document, plan_context=plan_context)
 
     def stream_response():
-        import requests
-
         url = "https://api.anthropic.com/v1/messages"
         headers = {
             "x-api-key": ANTHROPIC_API_KEY,
