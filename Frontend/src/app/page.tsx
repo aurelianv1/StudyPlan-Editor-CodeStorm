@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
@@ -17,11 +18,11 @@ const NAV_ITEMS = [
 
 function Navbar() {
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState("home");
-  const [isMounted, setIsMounted] = useState(false);
+  // activeSection is always "" on SSR — only set on client after mount
+  // This prevents any className mismatch between server and client renders
+  const [active, setActive] = useState("");
 
   useEffect(() => {
-    setIsMounted(true);
     setActive("home");
     const ids = ["home", "ai-editing", "doc-editing", "support"];
     const observers = ids.map((id) => {
@@ -42,8 +43,9 @@ function Navbar() {
     setOpen(false);
   };
 
+  // On SSR: active === "" so NO nav item gets the active class → consistent HTML
   const navItemClass = (id: string) =>
-    isMounted && active === id
+    active === id
       ? "text-white bg-white/10"
       : "text-white/40 hover:text-white/80 hover:bg-white/5";
 
@@ -174,17 +176,14 @@ function UploadZone({ onFile }: { onFile: (f: File) => void }) {
 
 function Section({ id, children, className = "" }: { id: string; children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLElement>(null);
+  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
 
+  // Only run on client — avoids SSR/client class mismatch
   useEffect(() => {
+    setMounted(true);
     const el = ref.current;
     if (!el) return;
-    
-    // Trigger animation after mount
-    requestAnimationFrame(() => {
-      setVisible(true);
-    });
-    
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) setVisible(true); },
       { threshold: 0.15 }
@@ -193,15 +192,20 @@ function Section({ id, children, className = "" }: { id: string; children: React
     return () => obs.disconnect();
   }, []);
 
-  const animClass = visible 
-    ? "opacity-100 translate-y-0" 
+  // On SSR and first paint: no animation classes (fully visible, no transform)
+  // After mount: animate in via IntersectionObserver
+  const animClass = !mounted
+    ? ""
+    : visible
+    ? "opacity-100 translate-y-0"
     : "opacity-0 translate-y-8";
 
   return (
     <section
-      ref={ref} 
-      id={id}
-      className={`min-h-screen flex flex-col justify-center relative overflow-hidden transition-all duration-700 ease-out ${animClass} ${className}`}
+      ref={ref} id={id}
+      className={`min-h-screen flex flex-col justify-center relative overflow-hidden ${
+        mounted ? "transition-all duration-700 ease-out" : ""
+      } ${animClass} ${className}`}
     >
       {children}
     </section>
@@ -214,7 +218,7 @@ function Divider() {
   return <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />;
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
