@@ -1,13 +1,19 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
-from anthropic import Anthropic
 import io
 import json
+import os
+import requests
+from dotenv import load_dotenv
+
 from services.parser import extract_sections
 from services.diff import compare_sections
 from services.exporter import generate_docx
 from services.prompt import SYSTEM_PROMPT
+
+load_dotenv()
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 app = FastAPI()
 
@@ -17,9 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-client = Anthropic()
-
 
 @app.post("/upload")
 async def upload(old_doc: UploadFile = File(...), new_template: UploadFile = File(...)):
@@ -41,14 +44,42 @@ async def chat(data: dict):
     system = SYSTEM_PROMPT.format(document=document)
 
     def stream_response():
-        with client.messages.stream(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1000,
-            system=system,
-            messages=messages,
-        ) as stream:
-            for text in stream.text_stream:
-                yield f"data: {json.dumps({'text': text})}\n\n"
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        payload = {
+            "model": "claude-3-5-sonnet-20241022",
+            "max_tokens": 1000,
+            "system": system,
+            "messages": messages,
+            "stream": True
+        }
+
+        with requests.post(url, headers=headers, json=payload, stream=True) as response:
+            if response.status_code != 200:
+                yield f"data: {json.dumps({'text': f'Eroare API: {response.text}'})}\n\n"
+                return
+
+            for line in response.iter_lines():
+                if line:
+                    decoded_line = line.decode('utf-8')
+                    if decoded_line.startswith('data: '):
+                        data_str = decoded_line[6:]
+                        
+                        if data_str.strip() == '[DONE]':
+                            break
+                            
+                        try:
+                            data_json = json.loads(data_str)
+                            if data_json.get("type") == "content_block_delta":
+                                text_chunk = data_json["delta"].get("text", "")
+                                yield f"data: {json.dumps({'text': text_chunk})}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+                            
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
