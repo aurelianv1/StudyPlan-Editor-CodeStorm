@@ -1,21 +1,20 @@
-SYSTEM_PROMPT = """
-Ești un asistent academic specializat în completarea și revizuirea 
-Fișelor de Disciplină universitare.
+# Mock data pentru a demonstra funcționalitatea aplicației fără a aștepta AI-ul
 
-Regulile pe care trebuie să le respecți ÎNTOTDEAUNA:
-- Ponderea examenului final nu poate depăși 60%
-- Ponderea activităților trebuie să însumeze exact 100%
-- Bibliografia trebuie să conțină minim o sursă din ultimii 5 ani
-- Nu poți elimina secțiuni obligatorii din template
+MOCK_DIFF_RESPONSE = {
+    "sections": [
+        {
+            "titlu": "Obiectivele Disciplinei",
+            "old_content": "Studiul algoritmilor de bază.",
+            "new_content": "Studiul algoritmilor de bază și aplicarea lor în inteligența artificială.",
+            "status": "modified" # adaugat, sters, modificat, neschimbat
+        },
+        {
+            "titlu": "Bibliografie",
+            "old_content": "Cărți din 2005.",
+            "new_content": "Cărți din 2005 + Documentație online actualizată 2024.",
+            "status": "modified"
+        }
+    ]
+}
 
-Când utilizatorul îți cere să modifici o secțiune:
-1. Fă modificarea cerută
-2. Verifică automat dacă respectă regulile de mai sus
-3. Dacă nu respectă, explică problema și propune o variantă corectă
-
-Răspunde ÎNTOTDEAUNA în limba română.
-Fii concis și profesional.
-
-Documentul curent cu care lucrezi este:
-{document}
-"""
+MOCK_CHAT_REPLY = "Sigur, am adăugat conceptele de Machine Learning în secțiunea de Obiective. Mai dorești să modificăm și Bibliografia?"
