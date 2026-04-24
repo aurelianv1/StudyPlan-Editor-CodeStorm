@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from "react";
-import { Button } from "./button";
 
 interface FileDropzoneProps {
+  id?: string; // ✅ FIX: Adăugat pentru a permite trecerea ID-ului din părinte
   onFileSelect: (file: File) => void;
   accept?: string;
   label?: string;
@@ -11,6 +11,7 @@ interface FileDropzoneProps {
 }
 
 export const FileDropzone: React.FC<FileDropzoneProps> = ({
+  id, // ✅ Destructurat și pasat mai jos
   onFileSelect,
   accept = "*/*",
   label = "Drag & drop your file here, or click to browse",
@@ -58,6 +59,7 @@ export const FileDropzone: React.FC<FileDropzoneProps> = ({
 
   return (
     <div
+      id={id} // ✅ Aplicat pe elementul root
       role="button"
       tabIndex={0}
       aria-label={label}
