@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = "http://localhost:8000";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,49 +125,34 @@ function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }
   const accept = async (file: File) => {
     setName(file.name);
     setState("uploading");
-    setStatusLabel("Se încarcă fișierul...");
+    setStatusLabel("Se încarcă planul...");
     setErrorMsg(null);
 
     try {
-      // 1. POST /upload
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("plan_doc", file);
 
-      const uploadRes = await fetch(`${BASE_URL}/upload`, {
+      const res = await fetch(`${BASE_URL}/generate`, {
         method: "POST",
         body: formData,
       });
 
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text();
-        throw new Error(errText || "Upload eșuat.");
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Eroare la procesare.");
       }
 
-      const uploadData = await uploadRes.json();
-      // Assume backend returns { id: string, ... } or similar
-      const uploadId: string | undefined = uploadData?.id ?? uploadData?.file_id ?? undefined;
-
-      // 2. POST /validate
-      setState("validating");
-      setStatusLabel("Se validează planul...");
-
-      const validateBody: Record<string, unknown> = {};
-      if (uploadId) validateBody.file_id = uploadId;
-
-      const validateRes = await fetch(`${BASE_URL}/validate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validateBody),
-      });
-
-      if (!validateRes.ok) {
-        const errText = await validateRes.text();
-        throw new Error(errText || "Validare eșuată.");
-      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fisa_disciplinei_schelet.docx";
+      a.click();
+      window.URL.revokeObjectURL(url);
 
       setState("success");
       setStatusLabel("");
-      onFile(file, uploadId);
+      onFile(file);
     } catch (err) {
       setState("error");
       setErrorMsg(err instanceof Error ? err.message : "A apărut o eroare.");
@@ -192,12 +177,12 @@ function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }
         ${state === "success"
           ? "border-white/30 bg-white/5 cursor-default"
           : state === "dragover"
-          ? "border-white/60 bg-white/10 scale-[1.01] cursor-copy"
-          : state === "uploading" || state === "validating"
-          ? "border-white/15 bg-white/[.03] cursor-wait"
-          : state === "error"
-          ? "border-red-500/30 bg-red-500/5 cursor-pointer"
-          : "border-white/10 hover:border-white/25 hover:bg-white/5 cursor-pointer"
+            ? "border-white/60 bg-white/10 scale-[1.01] cursor-copy"
+            : state === "uploading" || state === "validating"
+              ? "border-white/15 bg-white/[.03] cursor-wait"
+              : state === "error"
+                ? "border-red-500/30 bg-red-500/5 cursor-pointer"
+                : "border-white/10 hover:border-white/25 hover:bg-white/5 cursor-pointer"
         }`}
     >
       <input
@@ -251,9 +236,8 @@ function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }
 
         {(state === "idle" || state === "dragover") && (
           <>
-            <div className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
-              state === "dragover" ? "border-white bg-white" : "border-white/20 bg-transparent"
-            }`}>
+            <div className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${state === "dragover" ? "border-white bg-white" : "border-white/20 bg-transparent"
+              }`}>
               <svg className={`w-4 h-4 transition-colors ${state === "dragover" ? "text-black" : "text-white/30"}`}
                 fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
@@ -294,9 +278,8 @@ function Section({ id, children, className = "" }: { id: string; children: React
     <section
       ref={ref}
       id={id}
-      className={`min-h-screen flex flex-col justify-center relative overflow-hidden transition-all duration-700 ease-out ${
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-      } ${className}`}
+      className={`min-h-screen flex flex-col justify-center relative overflow-hidden transition-all duration-700 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+        } ${className}`}
     >
       {children}
     </section>
@@ -434,16 +417,15 @@ export default function HomePage() {
             <div className="flex flex-col gap-3 p-4">
               {[
                 { role: "user", text: "Update the number of credit hours to 6." },
-                { role: "ai",   text: "⚠️ Rule violation: courses in category C3 are capped at 5 credits. I can set it to 5 — apply?" },
+                { role: "ai", text: "⚠️ Rule violation: courses in category C3 are capped at 5 credits. I can set it to 5 — apply?" },
                 { role: "user", text: "Yes, apply that." },
-                { role: "ai",   text: "✓ Applied. Sheet is now compliant with §4.2." },
+                { role: "ai", text: "✓ Applied. Sheet is now compliant with §4.2." },
               ].map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <span className={`px-3 py-1.5 rounded-lg max-w-[80%] leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-white/10 text-white/70"
-                      : "bg-white/5 text-white/45 border border-white/8"
-                  }`}>
+                  <span className={`px-3 py-1.5 rounded-lg max-w-[80%] leading-relaxed ${msg.role === "user"
+                    ? "bg-white/10 text-white/70"
+                    : "bg-white/5 text-white/45 border border-white/8"
+                    }`}>
                     {msg.text}
                   </span>
                 </div>
@@ -478,35 +460,33 @@ export default function HomePage() {
               <div className="p-4 flex flex-col gap-1.5">
                 <p className="text-white/20 mb-2 font-medium">OLD</p>
                 {[
-                  { color: "red",     text: "Credits: 4" },
+                  { color: "red", text: "Credits: 4" },
                   { color: "neutral", text: "Category: C2" },
-                  { color: "red",     text: "Sem: 1, Year: 2" },
+                  { color: "red", text: "Sem: 1, Year: 2" },
                   { color: "neutral", text: "Lecture: 28h" },
                   { color: "neutral", text: "Lab: 14h" },
-                  { color: "red",     text: "Exam: Written" },
+                  { color: "red", text: "Exam: Written" },
                 ].map((row, i) => (
-                  <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono ${
-                    row.color === "red"
-                      ? "bg-red-500/15 text-red-400/80 line-through"
-                      : "text-white/30"
-                  }`}>{row.text}</span>
+                  <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono ${row.color === "red"
+                    ? "bg-red-500/15 text-red-400/80 line-through"
+                    : "text-white/30"
+                    }`}>{row.text}</span>
                 ))}
               </div>
               <div className="p-4 flex flex-col gap-1.5">
                 <p className="text-white/20 mb-2 font-medium">NEW</p>
                 {[
-                  { color: "green",   text: "Credits: 5" },
+                  { color: "green", text: "Credits: 5" },
                   { color: "neutral", text: "Category: C2" },
-                  { color: "green",   text: "Sem: 2, Year: 3" },
+                  { color: "green", text: "Sem: 2, Year: 3" },
                   { color: "neutral", text: "Lecture: 28h" },
                   { color: "neutral", text: "Lab: 14h" },
-                  { color: "green",   text: "Exam: Oral + Project" },
+                  { color: "green", text: "Exam: Oral + Project" },
                 ].map((row, i) => (
-                  <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono ${
-                    row.color === "green"
-                      ? "bg-emerald-500/15 text-emerald-400/80"
-                      : "text-white/30"
-                  }`}>{row.text}</span>
+                  <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono ${row.color === "green"
+                    ? "bg-emerald-500/15 text-emerald-400/80"
+                    : "text-white/30"
+                    }`}>{row.text}</span>
                 ))}
               </div>
             </div>
