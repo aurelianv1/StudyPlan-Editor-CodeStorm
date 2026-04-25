@@ -1,12 +1,7 @@
 from docx import Document
-import re
 
 
 def extract_sections(file_bytes: bytes) -> list[dict]:
-    """
-    Citește un .docx și returnează lista de secțiuni
-    detectate după headings sau linii bold.
-    """
     doc = Document(file_bytes)
     sections = []
     current_section = None
@@ -16,7 +11,9 @@ def extract_sections(file_bytes: bytes) -> list[dict]:
         if not text:
             continue
 
-        is_heading = para.style.name.startswith("Heading") or is_bold(para)
+        is_heading = (
+            para.style and para.style.name and para.style.name.startswith("Heading")
+        ) or is_bold(para)
 
         if is_heading:
             if current_section:
@@ -47,7 +44,6 @@ def extract_sections(file_bytes: bytes) -> list[dict]:
 
 
 def is_bold(para) -> bool:
-    """Verifică dacă primul run din paragraf e bold — semn de titlu."""
     for run in para.runs:
         if run.bold:
             return True
