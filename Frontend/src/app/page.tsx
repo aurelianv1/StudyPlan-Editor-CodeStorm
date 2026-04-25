@@ -3,9 +3,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
+const BASE_URL = "http://localhost:3000";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type UploadState = "idle" | "dragover" | "success";
+type UploadState = "idle" | "dragover" | "uploading" | "validating" | "success" | "error";
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
@@ -50,7 +52,6 @@ function Navbar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 h-14 border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-md">
-      {/* Logo */}
       <button onClick={() => scrollTo("home")} className="flex items-center gap-2.5 group">
         <span className="w-5 h-5 grid grid-cols-2 gap-0.5">
           <span className="bg-white rounded-[1px]" />
@@ -63,7 +64,6 @@ function Navbar() {
         </span>
       </button>
 
-      {/* Desktop nav */}
       <nav className="hidden md:flex items-center gap-1">
         {NAV_ITEMS.map((item) => (
           <button
@@ -76,7 +76,6 @@ function Navbar() {
         ))}
       </nav>
 
-      {/* Mobile hamburger */}
       <button
         onClick={() => setOpen((v) => !v)}
         className="md:hidden text-white/60 hover:text-white transition-colors p-1"
@@ -107,34 +106,111 @@ function Navbar() {
 
 // ─── Upload Zone ──────────────────────────────────────────────────────────────
 
-function UploadZone({ onFile }: { onFile: (f: File) => void }) {
+function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }) {
   const [state, setState] = useState<UploadState>("idle");
   const [name, setName] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusLabel, setStatusLabel] = useState<string>("");
   const ref = useRef<HTMLInputElement>(null);
 
-  const accept = (file: File) => { setName(file.name); setState("success"); onFile(file); };
-  const reset = (e: React.MouseEvent) => { e.stopPropagation(); setState("idle"); setName(null); if (ref.current) ref.current.value = ""; };
+  const reset = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setState("idle");
+    setName(null);
+    setErrorMsg(null);
+    setStatusLabel("");
+    if (ref.current) ref.current.value = "";
+  };
+
+  const accept = async (file: File) => {
+    setName(file.name);
+    setState("uploading");
+    setStatusLabel("Se încarcă fișierul...");
+    setErrorMsg(null);
+
+    try {
+      // 1. POST /upload
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadRes = await fetch(`${BASE_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(errText || "Upload eșuat.");
+      }
+
+      const uploadData = await uploadRes.json();
+      // Assume backend returns { id: string, ... } or similar
+      const uploadId: string | undefined = uploadData?.id ?? uploadData?.file_id ?? undefined;
+
+      // 2. POST /validate
+      setState("validating");
+      setStatusLabel("Se validează planul...");
+
+      const validateBody: Record<string, unknown> = {};
+      if (uploadId) validateBody.file_id = uploadId;
+
+      const validateRes = await fetch(`${BASE_URL}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validateBody),
+      });
+
+      if (!validateRes.ok) {
+        const errText = await validateRes.text();
+        throw new Error(errText || "Validare eșuată.");
+      }
+
+      setState("success");
+      setStatusLabel("");
+      onFile(file, uploadId);
+    } catch (err) {
+      setState("error");
+      setErrorMsg(err instanceof Error ? err.message : "A apărut o eroare.");
+    }
+  };
 
   return (
     <div
-      role="button" tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && state !== "success" && ref.current?.click()}
-      onDragOver={(e) => { e.preventDefault(); setState("dragover"); }}
-      onDragLeave={(e) => { e.preventDefault(); setState("idle"); }}
-      onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) accept(f); else setState("idle"); }}
-      onClick={() => state !== "success" && ref.current?.click()}
-      className={`relative w-full max-w-lg mx-auto rounded-xl border transition-all duration-300 cursor-pointer select-none
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && state === "idle" && ref.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); if (state === "idle") setState("dragover"); }}
+      onDragLeave={(e) => { e.preventDefault(); if (state === "dragover") setState("idle"); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const f = e.dataTransfer.files?.[0];
+        if (f && state === "idle") accept(f);
+        else if (state === "dragover") setState("idle");
+      }}
+      onClick={() => state === "idle" && ref.current?.click()}
+      className={`relative w-full max-w-lg mx-auto rounded-xl border transition-all duration-300 select-none
         ${state === "success"
           ? "border-white/30 bg-white/5 cursor-default"
           : state === "dragover"
-          ? "border-white/60 bg-white/10 scale-[1.01]"
-          : "border-white/10 hover:border-white/25 hover:bg-white/5"
+          ? "border-white/60 bg-white/10 scale-[1.01] cursor-copy"
+          : state === "uploading" || state === "validating"
+          ? "border-white/15 bg-white/[.03] cursor-wait"
+          : state === "error"
+          ? "border-red-500/30 bg-red-500/5 cursor-pointer"
+          : "border-white/10 hover:border-white/25 hover:bg-white/5 cursor-pointer"
         }`}
     >
-      <input ref={ref} type="file" accept=".pdf,.doc,.docx,.xlsx,.xls" onChange={(e) => { const f = e.target.files?.[0]; if (f) accept(f); }} className="hidden" aria-hidden />
+      <input
+        ref={ref}
+        type="file"
+        accept=".pdf,.doc,.docx,.xlsx,.xls"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) accept(f); }}
+        className="hidden"
+        aria-hidden
+      />
 
       <div className="flex flex-col items-center gap-3 py-10 px-8 text-center">
-        {state === "success" ? (
+        {state === "success" && (
           <>
             <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center mb-1"
               style={{ animation: "popIn .35s cubic-bezier(.34,1.56,.64,1) both" }}>
@@ -142,13 +218,38 @@ function UploadZone({ onFile }: { onFile: (f: File) => void }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </span>
-            <p className="text-white text-sm font-semibold">Fișier încărcat cu succes</p>
+            <p className="text-white text-sm font-semibold">Plan încărcat și validat</p>
             <p className="text-white/40 text-xs font-mono truncate max-w-xs">{name}</p>
             <button onClick={reset} className="text-xs text-white/25 hover:text-white/60 transition-colors underline underline-offset-2 mt-1">
               Remove &amp; upload another
             </button>
           </>
-        ) : (
+        )}
+
+        {(state === "uploading" || state === "validating") && (
+          <>
+            <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin" />
+            <p className="text-white/60 text-sm font-medium">{statusLabel}</p>
+            <p className="text-white/25 text-xs font-mono truncate max-w-xs">{name}</p>
+          </>
+        )}
+
+        {state === "error" && (
+          <>
+            <span className="w-10 h-10 rounded-full border border-red-500/30 bg-red-500/10 flex items-center justify-center mb-1">
+              <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </span>
+            <p className="text-red-400 text-sm font-semibold">Eroare</p>
+            <p className="text-red-400/60 text-xs max-w-xs">{errorMsg}</p>
+            <button onClick={reset} className="text-xs text-white/25 hover:text-white/60 transition-colors underline underline-offset-2 mt-1">
+              Încearcă din nou
+            </button>
+          </>
+        )}
+
+        {(state === "idle" || state === "dragover") && (
           <>
             <div className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
               state === "dragover" ? "border-white bg-white" : "border-white/20 bg-transparent"
@@ -171,7 +272,7 @@ function UploadZone({ onFile }: { onFile: (f: File) => void }) {
   );
 }
 
-// ─── Section wrapper with scroll-reveal ──────────────────────────────────────
+// ─── Section wrapper ──────────────────────────────────────────────────────────
 
 function Section({ id, children, className = "" }: { id: string; children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLElement>(null);
@@ -180,12 +281,7 @@ function Section({ id, children, className = "" }: { id: string; children: React
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    
-    // Trigger animation after mount
-    requestAnimationFrame(() => {
-      setVisible(true);
-    });
-    
+    requestAnimationFrame(() => setVisible(true));
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) setVisible(true); },
       { threshold: 0.15 }
@@ -194,31 +290,33 @@ function Section({ id, children, className = "" }: { id: string; children: React
     return () => obs.disconnect();
   }, []);
 
-  const animClass = visible 
-    ? "opacity-100 translate-y-0" 
-    : "opacity-0 translate-y-8";
-
   return (
     <section
-      ref={ref} 
+      ref={ref}
       id={id}
-      className={`min-h-screen flex flex-col justify-center relative overflow-hidden transition-all duration-700 ease-out ${animClass} ${className}`}
+      className={`min-h-screen flex flex-col justify-center relative overflow-hidden transition-all duration-700 ease-out ${
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+      } ${className}`}
     >
       {children}
     </section>
   );
 }
 
-// ─── Divider line ─────────────────────────────────────────────────────────────
-
 function Divider() {
   return <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />;
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadId, setUploadId] = useState<string | undefined>(undefined);
+
+  const handleFile = (f: File, id?: string) => {
+    setUploadedFile(f);
+    setUploadId(id);
+  };
 
   return (
     <div className="bg-[#0a0a0a] text-white font-sans">
@@ -226,24 +324,20 @@ export default function HomePage() {
 
       {/* ── Section 1: Home ─────────────────────────────── */}
       <Section id="home" className="pt-14">
-        {/* Background: large faint grid */}
         <div aria-hidden className="pointer-events-none absolute inset-0"
           style={{
             backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px)",
             backgroundSize: "80px 80px",
           }} />
-        {/* Radial glow */}
         <div aria-hidden className="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full"
           style={{ background: "radial-gradient(ellipse at center, rgba(255,255,255,.04) 0%, transparent 70%)" }} />
 
         <div className="relative mx-auto max-w-4xl px-8 py-32 flex flex-col items-center text-center gap-8">
-          {/* Badge */}
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 text-xs text-white/40 tracking-widest uppercase">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             University Studies Plan Management
           </span>
 
-          {/* Headline */}
           <h1 className="text-6xl sm:text-7xl font-bold tracking-[-0.03em] leading-[1.02]"
             style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
             Discipline sheets,
@@ -258,20 +352,20 @@ export default function HomePage() {
             cross-referencing required.
           </p>
 
-          {/* Upload */}
           <div className="w-full mt-4">
             <p className="text-xs tracking-[0.2em] uppercase text-white/20 mb-5">
               Start by uploading your study plan
             </p>
-            <UploadZone onFile={(f) => setUploadedFile(f)} />
+            <UploadZone onFile={handleFile} />
             {uploadedFile && (
               <p className="mt-4 text-xs text-white/25">
-                Plan loaded — <span className="text-white/60">{uploadedFile.name}</span>. Scroll down to choose a tool.
+                Plan încărcat — <span className="text-white/60">{uploadedFile.name}</span>
+                {uploadId && <span className="text-white/30"> · ID: {uploadId}</span>}
+                {" "}· Scroll down to choose a tool.
               </p>
             )}
           </div>
 
-          {/* Scroll cue */}
           <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20">
             <span className="text-[10px] tracking-widest uppercase">Scroll</span>
             <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -285,7 +379,6 @@ export default function HomePage() {
 
       {/* ── Section 2: AI Editing ────────────────────────── */}
       <Section id="ai-editing">
-        {/* Faint diagonal lines background */}
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: "repeating-linear-gradient(45deg, white 0, white 1px, transparent 0, transparent 50%)",
@@ -295,7 +388,6 @@ export default function HomePage() {
           style={{ background: "radial-gradient(ellipse at 80% 40%, rgba(255,255,255,.04) 0%, transparent 65%)" }} />
 
         <div className="relative mx-auto max-w-4xl px-8 py-28 grid md:grid-cols-2 gap-16 items-center">
-          {/* Text side */}
           <div className="flex flex-col gap-6">
             <span className="text-xs tracking-[0.25em] uppercase text-white/25">01 — AI Editing</span>
             <h2 className="text-5xl font-bold tracking-[-0.02em] leading-[1.05]"
@@ -323,8 +415,7 @@ export default function HomePage() {
               ))}
             </ul>
             <Link href="/ai-editing" className="mt-4 w-fit">
-              <button className="group flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black text-sm font-semibold
-                hover:bg-white/90 transition-all duration-200 active:scale-95">
+              <button className="group flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all duration-200 active:scale-95">
                 Open AI Editor
                 <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -333,7 +424,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Visual side — mock chat UI */}
           <div className="hidden md:flex flex-col rounded-xl border border-white/8 bg-white/[.03] overflow-hidden text-xs">
             <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/8">
               <span className="w-2 h-2 rounded-full bg-white/15" />
@@ -377,7 +467,6 @@ export default function HomePage() {
           style={{ background: "radial-gradient(ellipse at 20% 60%, rgba(255,255,255,.04) 0%, transparent 65%)" }} />
 
         <div className="relative mx-auto max-w-4xl px-8 py-28 grid md:grid-cols-2 gap-16 items-center">
-          {/* Visual side — mock diff UI */}
           <div className="hidden md:flex flex-col rounded-xl border border-white/8 bg-white/[.03] overflow-hidden text-xs order-first">
             <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/8">
               <span className="w-2 h-2 rounded-full bg-white/15" />
@@ -386,16 +475,15 @@ export default function HomePage() {
               <span className="ml-2 text-white/20">old_sheet.docx → new_template.docx</span>
             </div>
             <div className="grid grid-cols-2 divide-x divide-white/8">
-              {/* Old */}
               <div className="p-4 flex flex-col gap-1.5">
                 <p className="text-white/20 mb-2 font-medium">OLD</p>
                 {[
-                  { color: "red",    text: "Credits: 4" },
-                  { color: "neutral",text: "Category: C2" },
-                  { color: "red",    text: "Sem: 1, Year: 2" },
-                  { color: "neutral",text: "Lecture: 28h" },
-                  { color: "neutral",text: "Lab: 14h" },
-                  { color: "red",    text: "Exam: Written" },
+                  { color: "red",     text: "Credits: 4" },
+                  { color: "neutral", text: "Category: C2" },
+                  { color: "red",     text: "Sem: 1, Year: 2" },
+                  { color: "neutral", text: "Lecture: 28h" },
+                  { color: "neutral", text: "Lab: 14h" },
+                  { color: "red",     text: "Exam: Written" },
                 ].map((row, i) => (
                   <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono ${
                     row.color === "red"
@@ -404,16 +492,15 @@ export default function HomePage() {
                   }`}>{row.text}</span>
                 ))}
               </div>
-              {/* New */}
               <div className="p-4 flex flex-col gap-1.5">
                 <p className="text-white/20 mb-2 font-medium">NEW</p>
                 {[
-                  { color: "green",  text: "Credits: 5" },
-                  { color: "neutral",text: "Category: C2" },
-                  { color: "green",  text: "Sem: 2, Year: 3" },
-                  { color: "neutral",text: "Lecture: 28h" },
-                  { color: "neutral",text: "Lab: 14h" },
-                  { color: "green",  text: "Exam: Oral + Project" },
+                  { color: "green",   text: "Credits: 5" },
+                  { color: "neutral", text: "Category: C2" },
+                  { color: "green",   text: "Sem: 2, Year: 3" },
+                  { color: "neutral", text: "Lecture: 28h" },
+                  { color: "neutral", text: "Lab: 14h" },
+                  { color: "green",   text: "Exam: Oral + Project" },
                 ].map((row, i) => (
                   <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono ${
                     row.color === "green"
@@ -425,7 +512,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Text side */}
           <div className="flex flex-col gap-6">
             <span className="text-xs tracking-[0.25em] uppercase text-white/25">02 — Doc Editing</span>
             <h2 className="text-5xl font-bold tracking-[-0.02em] leading-[1.05]"
@@ -454,8 +540,7 @@ export default function HomePage() {
               ))}
             </ul>
             <Link href="/updating-docs" className="mt-4 w-fit">
-              <button className="group flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black text-sm font-semibold
-                hover:bg-white/90 transition-all duration-200 active:scale-95">
+              <button className="group flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all duration-200 active:scale-95">
                 Open Doc Editor
                 <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -504,8 +589,7 @@ export default function HomePage() {
           </div>
 
           <Link href="/help" className="mt-2">
-            <button className="group flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-black text-sm font-semibold
-              hover:bg-white/90 transition-all duration-200 active:scale-95">
+            <button className="group flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all duration-200 active:scale-95">
               Open Contact Form
               <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -515,7 +599,6 @@ export default function HomePage() {
         </div>
       </Section>
 
-      {/* Footer */}
       <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <footer className="py-8 text-center text-xs text-white/15 tracking-wider">
         StudyPlan Editor · Built for universities

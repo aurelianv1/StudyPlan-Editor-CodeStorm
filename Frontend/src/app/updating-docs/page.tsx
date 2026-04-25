@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 
-// Tipul exact pe care backend-ul trebuie să îl returneze
+const BASE_URL = "http://localhost:3000";
+
 export type DiffLine = {
   type: "added" | "removed" | "unchanged";
   oldLine: string | null;
@@ -16,7 +17,7 @@ export default function DocEditingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFileSelect = useCallback((type: "old" | "template", file: File) => {
+  const handleFileSelect = useCallback((type: "old" | "template", file: File | null) => {
     if (type === "old") setOldFile(file);
     else setTemplateFile(file);
     setDiffData(null);
@@ -34,7 +35,8 @@ export default function DocEditingPage() {
       formData.append("oldDocument", oldFile);
       formData.append("template", templateFile);
 
-      const response = await fetch("/api/generate-diff", {
+      // Folosim POST /generate în loc de /api/generate-diff
+      const response = await fetch(`${BASE_URL}/generate`, {
         method: "POST",
         body: formData,
       });
@@ -133,8 +135,10 @@ export default function DocEditingPage() {
         </div>
 
         {/* Hidden file inputs */}
-        <input id="dz-old" type="file" accept=".pdf,.docx" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileSelect("old", e.target.files[0])} />
-        <input id="dz-new" type="file" accept=".pdf,.docx" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileSelect("template", e.target.files[0])} />
+        <input id="dz-old" type="file" accept=".pdf,.docx" className="hidden"
+          onChange={(e) => e.target.files?.[0] && handleFileSelect("old", e.target.files[0])} />
+        <input id="dz-new" type="file" accept=".pdf,.docx" className="hidden"
+          onChange={(e) => e.target.files?.[0] && handleFileSelect("template", e.target.files[0])} />
 
         {/* Upload Area */}
         {!diffData && !isLoading && (
@@ -163,7 +167,7 @@ export default function DocEditingPage() {
                       <p className="text-white text-sm font-semibold">Încărcat</p>
                       <p className="text-white/40 text-xs font-mono truncate max-w-[180px]">{file.name}</p>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleFileSelect(type, null as any); }}
+                        onClick={(e) => { e.stopPropagation(); handleFileSelect(type, null); }}
                         className="text-[10px] text-white/25 hover:text-white/60 transition-colors underline underline-offset-2"
                       >
                         Remove
@@ -193,6 +197,7 @@ export default function DocEditingPage() {
           <div className="flex flex-col items-center justify-center h-56 gap-4">
             <div className="w-9 h-9 border-2 border-white/10 border-t-white rounded-full animate-spin" />
             <p className="text-white/40 text-sm font-medium">Se procesează documentele...</p>
+            <p className="text-white/20 text-xs">POST {BASE_URL}/generate</p>
           </div>
         )}
 
@@ -249,11 +254,11 @@ export default function DocEditingPage() {
             {/* Legend */}
             <div className="mt-6 flex justify-center gap-8 text-[10px] text-white/30">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-red-500/20 border border-red-500/30 rounded-sm"></span>
+                <span className="w-2.5 h-2.5 bg-red-500/20 border border-red-500/30 rounded-sm" />
                 <span>Linii șterse</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm"></span>
+                <span className="w-2.5 h-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm" />
                 <span>Linii adăugate</span>
               </div>
             </div>
@@ -261,7 +266,6 @@ export default function DocEditingPage() {
         )}
       </div>
 
-      {/* Footer divider */}
       <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <footer className="py-6 text-center text-[10px] text-white/15 tracking-wider">
         StudyPlan Editor · Built for universities
