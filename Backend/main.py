@@ -17,7 +17,9 @@ from services.prompt import SYSTEM_PROMPT
 from services.plan_parser import extract_plan_data
 from services.plan_validator import validate_fd_against_plan
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+from services.skeleton_generator import generate_skeleton
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 app = FastAPI()
 
@@ -77,18 +79,15 @@ async def chat(data: dict):
     system = SYSTEM_PROMPT.format(document=document, plan_context=plan_context)
 
     def stream_response():
-        url = "https://api.anthropic.com/v1/messages"
+        url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
         }
         payload = {
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 1000,
-            "system": system,
-            "messages": messages,
+            "model": "llama-3.3-70b-versatile",
             "stream": True,
+            "messages": [{"role": "system", "content": system}, *messages],
         }
 
         with requests.post(url, headers=headers, json=payload, stream=True) as response:
@@ -101,15 +100,14 @@ async def chat(data: dict):
                     decoded_line = line.decode("utf-8")
                     if decoded_line.startswith("data: "):
                         data_str = decoded_line[6:]
-
                         if data_str.strip() == "[DONE]":
                             break
-
                         try:
                             data_json = json.loads(data_str)
-                            if data_json.get("type") == "content_block_delta":
-                                text_chunk = data_json["delta"].get("text", "")
-                                yield f"data: {json.dumps({'text': text_chunk})}\n\n"
+                            delta = data_json["choices"][0].get("delta", {})
+                            text = delta.get("content", "")
+                            if text:
+                                yield f"data: {json.dumps({'text': text})}\n\n"
                         except json.JSONDecodeError:
                             continue
 
@@ -132,5 +130,20 @@ async def export(data: dict):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={
             "Content-Disposition": "attachment; filename=fisa_disciplinei_nou.docx"
+        },
+    )
+
+
+@app.post("/generate")
+async def generate(plan_doc: UploadFile = File(...)):
+    plan_bytes = io.BytesIO(await plan_doc.read())
+    plan_data = extract_plan_data(plan_bytes)
+    docx_bytes = generate_skeleton(plan_data)
+
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": "attachment; filename=fisa_disciplinei_schelet.docx"
         },
     )
