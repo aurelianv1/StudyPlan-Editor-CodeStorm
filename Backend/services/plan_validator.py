@@ -1,65 +1,64 @@
+from services.docx_utils import extract_credits
+
+MAX_LISTED_MISSING_COMPETENCES = 3
+
+# Perechi (tip prevăzut în plan, tip care intră în conflict cu el).
+_CONFLICTING_EVALUATIONS = {
+    "examen": "colocviu",
+    "colocviu": "examen",
+}
+
+
 def validate_fd_against_plan(sections: list[dict], plan_data: dict) -> list[dict]:
-    conflicts = []
-    full_text = " ".join([s.get("content", "") for s in sections]).lower()
+    """Compară Fișa Disciplinei cu datele din Planul de Învățământ."""
+    full_text = " ".join(s.get("content", "") for s in sections).lower()
 
-    tip_plan = plan_data.get("tip_evaluare")
-    if tip_plan:
-        if (
-            tip_plan == "examen"
-            and "colocviu" in full_text
-            and "examen" not in full_text
-        ):
-            conflicts.append(
-                {
-                    "tip": "tip_evaluare",
-                    "severitate": "error",
-                    "mesaj": f"Planul prevede 'Examen', dar FD menționează 'Colocviu'.",
-                }
-            )
-        elif (
-            tip_plan == "colocviu"
-            and "examen" in full_text
-            and "colocviu" not in full_text
-        ):
-            conflicts.append(
-                {
-                    "tip": "tip_evaluare",
-                    "severitate": "error",
-                    "mesaj": f"Planul prevede 'Colocviu', dar FD menționează 'Examen'.",
-                }
-            )
-
-    credite_plan = plan_data.get("credite")
-    if credite_plan:
-        credite_fd = extract_credite_din_fd(full_text)
-        if credite_fd and credite_fd != credite_plan:
-            conflicts.append(
-                {
-                    "tip": "credite",
-                    "severitate": "error",
-                    "mesaj": f"Planul prevede {credite_plan} credite, FD menționează {credite_fd} credite.",
-                }
-            )
-
-    competente_plan = plan_data.get("competente_profesionale", [])
-    if competente_plan:
-        competente_lipsa = [c for c in competente_plan if c.lower() not in full_text]
-        if competente_lipsa:
-            conflicts.append(
-                {
-                    "tip": "competente",
-                    "severitate": "warning",
-                    "mesaj": f"Competențele următoare din Plan lipsesc din FD: {', '.join(competente_lipsa[:3])}",
-                }
-            )
-
-    return conflicts
+    checks = (
+        _check_evaluation_type(full_text, plan_data.get("tip_evaluare")),
+        _check_credits(full_text, plan_data.get("credite")),
+        _check_competences(full_text, plan_data.get("competente_profesionale", [])),
+    )
+    return [conflict for conflict in checks if conflict]
 
 
-def extract_credite_din_fd(text: str) -> int | None:
-    import re
+def has_errors(conflicts: list[dict]) -> bool:
+    return any(c["severitate"] == "error" for c in conflicts)
 
-    matches = re.findall(r"credite?[:\s]+(\d+)", text)
-    if matches:
-        return int(matches[0])
+
+def _conflict(kind: str, severity: str, message: str) -> dict:
+    return {"tip": kind, "severitate": severity, "mesaj": message}
+
+
+def _check_evaluation_type(fd_text: str, plan_type: str | None) -> dict | None:
+    conflicting_type = _CONFLICTING_EVALUATIONS.get(plan_type or "")
+    if conflicting_type and conflicting_type in fd_text and plan_type not in fd_text:
+        return _conflict(
+            "tip_evaluare",
+            "error",
+            f"Planul prevede '{plan_type.capitalize()}', "
+            f"dar FD menționează '{conflicting_type.capitalize()}'.",
+        )
+    return None
+
+
+def _check_credits(fd_text: str, plan_credits: int | None) -> dict | None:
+    fd_credits = extract_credits(fd_text)
+    if plan_credits and fd_credits and fd_credits != plan_credits:
+        return _conflict(
+            "credite",
+            "error",
+            f"Planul prevede {plan_credits} credite, FD menționează {fd_credits} credite.",
+        )
+    return None
+
+
+def _check_competences(fd_text: str, plan_competences: list[str]) -> dict | None:
+    missing = [c for c in plan_competences if c.lower() not in fd_text]
+    if missing:
+        listed = ", ".join(missing[:MAX_LISTED_MISSING_COMPETENCES])
+        return _conflict(
+            "competente",
+            "warning",
+            f"Competențele următoare din Plan lipsesc din FD: {listed}",
+        )
     return None
