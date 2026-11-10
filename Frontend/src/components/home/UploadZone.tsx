@@ -95,8 +95,10 @@ export function UploadZone() {
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      // Only a button while it can open the picker; the other states hold
+      // real buttons of their own.
+      role={state === "idle" ? "button" : undefined}
+      tabIndex={state === "idle" ? 0 : undefined}
       onKeyDown={(event) => event.key === "Enter" && openPicker()}
       onDragOver={(event) => {
         event.preventDefault();

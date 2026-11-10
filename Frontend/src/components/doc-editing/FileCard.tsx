@@ -12,8 +12,8 @@ interface FileCardProps {
 export function FileCard({ label, file, onPick, onRemove }: FileCardProps) {
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role={file ? undefined : "button"}
+      tabIndex={file ? undefined : 0}
       onClick={() => !file && onPick()}
       onKeyDown={(event) => event.key === "Enter" && !file && onPick()}
       className={`relative rounded-xl border transition-all duration-300 select-none ${
