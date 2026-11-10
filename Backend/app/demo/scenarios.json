@@ -1,0 +1,233 @@
+{
+  "structuri_de_date": {
+    "validate": {
+      "plan_data": {
+        "credite": 5,
+        "tip_evaluare": "examen",
+        "competente_profesionale": [
+          "CP1. Creează softuri, dezvoltă prototipul pentru software.",
+          "CP2. Utilizează șabloane de proiectare de software, creează diagrama de proces.",
+          "CP3. Analizează specificații software, definește arhitectura software, proiectează sistemul informatic."
+        ],
+        "competente_transversale": [
+          "CT3. Identifică probleme, soluționează probleme.",
+          "CT4. Demonstrează angajament, gândește rapid, gândește analitic."
+        ]
+      },
+      "conflicts": [
+        {
+          "tip": "tip_evaluare",
+          "severitate": "error",
+          "mesaj": "⛔ Planul prevede 'Examen', dar FD menționează 'Colocviu'. Vă rugăm să corectați forma de evaluare."
+        }
+      ],
+      "has_errors": true
+    },
+    "upload": {
+      "sections": [
+        {
+          "id": "1",
+          "title": "Date despre programul de studiu",
+          "content": "Universitatea Transilvania din Brașov, Informatică",
+          "status": "unchanged"
+        },
+        {
+          "id": "2",
+          "title": "Date despre disciplină",
+          "content": "Structuri de Date, Sem I, Colocviu, 5 credite",
+          "status": "modified"
+        },
+        {
+          "id": "3",
+          "title": "Obiectivele disciplinei",
+          "content": "Însușirea noțiunilor fundamentale privind structurile de date.",
+          "status": "unchanged"
+        },
+        {
+          "id": "4",
+          "title": "Competențe profesionale",
+          "content": "CP2, CP3",
+          "status": "unchanged"
+        },
+        {
+          "id": "5",
+          "title": "Conținutul disciplinei",
+          "content": "Liste, stive, cozi, arbori, grafuri.",
+          "status": "unchanged"
+        },
+        {
+          "id": "6",
+          "title": "Rezultate așteptate",
+          "content": "",
+          "status": "new"
+        },
+        {
+          "id": "7",
+          "title": "Evaluare",
+          "content": "Colocviu final 60%, Activitate laborator 40%",
+          "status": "modified"
+        },
+        {
+          "id": "8",
+          "title": "Bibliografie",
+          "content": "Knuth, Cormen, Sedgewick",
+          "status": "unchanged"
+        }
+      ]
+    }
+  },
+  "analiza_matematica": {
+    "validate": {
+      "plan_data": {
+        "credite": 5,
+        "tip_evaluare": "examen",
+        "competente_profesionale": [
+          "CP1. Creează softuri, dezvoltă prototipul pentru software.",
+          "CP2. Utilizează șabloane de proiectare de software, creează diagrama de proces.",
+          "CP3. Analizează specificații software, definește arhitectura software, proiectează sistemul informatic."
+        ],
+        "competente_transversale": [
+          "CT3. Identifică probleme, soluționează probleme.",
+          "CT4. Demonstrează angajament, gândește rapid, gândește analitic.",
+          "CT5. Lucrează în echipe, organizează informații, obiecte și resurse."
+        ]
+      },
+      "conflicts": [
+        {
+          "tip": "competente",
+          "severitate": "warning",
+          "mesaj": "⚠️ Competența CP1 lipsește din FD. Conform Planului de Învățământ, această disciplină trebuie să acopere: 'CP1. Creează softuri, dezvoltă prototipul pentru software.'"
+        },
+        {
+          "tip": "competente",
+          "severitate": "warning",
+          "mesaj": "⚠️ Competența CT5 lipsește din FD. Conform Planului de Învățământ, această disciplină trebuie să acopere: 'CT5. Lucrează în echipe, organizează informații, obiecte și resurse.'"
+        }
+      ],
+      "has_errors": false
+    },
+    "upload": {
+      "sections": [
+        {
+          "id": "1",
+          "title": "Date despre programul de studiu",
+          "content": "Universitatea Transilvania din Brașov, Informatică",
+          "status": "unchanged"
+        },
+        {
+          "id": "2",
+          "title": "Date despre disciplină",
+          "content": "Analiză Matematică, Sem I, Examen, 5 credite",
+          "status": "unchanged"
+        },
+        {
+          "id": "3",
+          "title": "Obiectivele disciplinei",
+          "content": "Însușirea noțiunilor de bază ale analizei matematice.",
+          "status": "modified"
+        },
+        {
+          "id": "4",
+          "title": "Competențe profesionale",
+          "content": "CP2, CP3",
+          "status": "missing"
+        },
+        {
+          "id": "5",
+          "title": "Conținutul disciplinei",
+          "content": "Limite, derivate, integrale, serii.",
+          "status": "unchanged"
+        },
+        {
+          "id": "6",
+          "title": "Rezultate așteptate",
+          "content": "",
+          "status": "new"
+        },
+        {
+          "id": "7",
+          "title": "Evaluare",
+          "content": "Examen final 60%, Teme 40%",
+          "status": "unchanged"
+        },
+        {
+          "id": "8",
+          "title": "Bibliografie",
+          "content": "Rudin 1976, Apostol 1974",
+          "status": "unchanged"
+        }
+      ]
+    }
+  },
+  "sisteme_de_operare": {
+    "validate": {
+      "plan_data": {
+        "credite": 5,
+        "tip_evaluare": "examen",
+        "competente_profesionale": [
+          "CP1. Creează softuri, dezvoltă prototipul pentru software.",
+          "CP2. Utilizează șabloane de proiectare de software, creează diagrama de proces.",
+          "CP3. Analizează specificații software, definește arhitectura software, proiectează sistemul informatic."
+        ],
+        "competente_transversale": [
+          "CT1. Aplică competente de bază în materie de programare.",
+          "CT3. Identifică probleme, soluționează probleme."
+        ]
+      },
+      "conflicts": [],
+      "has_errors": false
+    },
+    "upload": {
+      "sections": [
+        {
+          "id": "1",
+          "title": "Date despre programul de studiu",
+          "content": "Universitatea Transilvania din Brașov, Informatică",
+          "status": "unchanged"
+        },
+        {
+          "id": "2",
+          "title": "Date despre disciplină",
+          "content": "Sisteme de Operare, Sem II, Examen, 5 credite",
+          "status": "unchanged"
+        },
+        {
+          "id": "3",
+          "title": "Obiectivele disciplinei",
+          "content": "Cunoașterea principiilor de funcționare ale sistemelor de operare.",
+          "status": "unchanged"
+        },
+        {
+          "id": "4",
+          "title": "Competențe profesionale",
+          "content": "CP1, CP2, CP3",
+          "status": "unchanged"
+        },
+        {
+          "id": "5",
+          "title": "Conținutul disciplinei",
+          "content": "Procese și fire de execuție, Gestiunea memoriei, Sisteme de fișiere.",
+          "status": "unchanged"
+        },
+        {
+          "id": "6",
+          "title": "Rezultate așteptate",
+          "content": "Studentul va înțelege arhitectura unui sistem de operare modern.",
+          "status": "unchanged"
+        },
+        {
+          "id": "7",
+          "title": "Evaluare",
+          "content": "Examen final 60%, Laborator 40%",
+          "status": "unchanged"
+        },
+        {
+          "id": "8",
+          "title": "Bibliografie",
+          "content": "Tanenbaum 2015, Silberschatz 2018, Arpaci-Dusseau 2023",
+          "status": "unchanged"
+        }
+      ]
+    }
+  }
+}
