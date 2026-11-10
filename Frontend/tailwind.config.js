@@ -1,10 +1,23 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    content: [
-        './src/**/*.{js,ts,jsx,tsx}',
-    ],
-    theme: {
-        extend: {},
+  content: ["./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      fontFamily: {
+        // Serif face used by the large page headings.
+        display: ["Georgia", "'Times New Roman'", "serif"],
+      },
+      keyframes: {
+        "pop-in": {
+          "0%": { transform: "scale(.4)", opacity: "0" },
+          "70%": { transform: "scale(1.12)" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+      },
+      animation: {
+        "pop-in": "pop-in .35s cubic-bezier(.34,1.56,.64,1) both",
+      },
     },
-    plugins: [],
-}
+  },
+  plugins: [],
+};
