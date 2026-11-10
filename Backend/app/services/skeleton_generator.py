@@ -1,86 +1,97 @@
+"""Generate an empty discipline sheet pre-filled from the study plan."""
+
+from __future__ import annotations
+
+from datetime import date
+
 from docx import Document
-import io
+
+from app.schemas import PlanData
+from app.services.exporter import add_placeholder, to_bytes
+
+FILL_IN = "[ Completați ]"
+FINAL_EVALUATION_WEIGHT = "60%"
+ACTIVITY_WEIGHT = "40%"
 
 
-def generate_skeleton(plan_data: dict) -> bytes:
-    """
-    Generează un schelet de FD pre-completat din datele Planului de Învățământ.
-    """
-    doc = Document()
+def academic_year(today: date | None = None) -> str:
+    """The academic year in progress; a new one starts in September."""
+    today = today or date.today()
+    start = today.year if today.month >= 9 else today.year - 1
+    return f"{start}-{start + 1}"
 
-    doc.add_heading("FIȘA DISCIPLINEI", level=0)
 
-    doc.add_heading("1. Date despre programul de studiu", level=1)
-    table1 = doc.add_table(rows=3, cols=2)
-    table1.style = "Table Grid"
-    table1.cell(0, 0).text = "Tip evaluare"
-    table1.cell(0, 1).text = (
-        plan_data.get("tip_evaluare", "").capitalize()
-        if plan_data.get("tip_evaluare")
-        else "[ Completați ]"
+def generate_skeleton(plan: PlanData) -> bytes:
+    document = Document()
+    evaluation = plan.evaluation_type.capitalize() if plan.evaluation_type else None
+
+    document.add_heading("FIȘA DISCIPLINEI", level=0)
+
+    document.add_heading("1. Date despre programul de studiu", level=1)
+    _add_table(
+        document,
+        [
+            ("Tip evaluare", evaluation or FILL_IN),
+            ("Număr credite", str(plan.credits) if plan.credits else FILL_IN),
+            ("Anul universitar", academic_year()),
+        ],
     )
-    table1.cell(1, 0).text = "Număr credite"
-    table1.cell(1, 1).text = (
-        str(plan_data.get("credite")) if plan_data.get("credite") else "[ Completați ]"
+
+    document.add_heading("2. Obiectivele disciplinei", level=1)
+    add_placeholder(document, "[ Completați obiectivele disciplinei ]")
+
+    document.add_heading("3. Competențe profesionale", level=1)
+    _add_list(
+        document,
+        plan.professional_competencies,
+        "[ Completați competențele profesionale ]",
     )
-    table1.cell(2, 0).text = "Anul universitar"
-    table1.cell(2, 1).text = "2025-2026"
 
-    doc.add_paragraph()
+    document.add_heading("4. Competențe transversale", level=1)
+    _add_list(
+        document,
+        plan.transversal_competencies,
+        "[ Completați competențele transversale ]",
+    )
 
-    doc.add_heading("2. Obiectivele disciplinei", level=1)
-    doc.add_paragraph("[ Completați obiectivele disciplinei ]").italic = True
+    document.add_heading("5. Conținutul disciplinei", level=1)
+    document.add_heading("5.1 Curs", level=2)
+    add_placeholder(document, "[ Completați tematica cursului ]")
+    document.add_heading("5.2 Seminar/Laborator", level=2)
+    add_placeholder(document, "[ Completați tematica seminarului/laboratorului ]")
 
-    doc.add_paragraph()
+    document.add_heading("6. Evaluare", level=1)
+    _add_table(
+        document,
+        [
+            ("Tip activitate", "Pondere"),
+            (evaluation or "Examen", FINAL_EVALUATION_WEIGHT),
+            ("Activitate laborator/seminar", ACTIVITY_WEIGHT),
+        ],
+    )
 
-    doc.add_heading("3. Competențe profesionale", level=1)
-    competente = plan_data.get("competente_profesionale", [])
-    if competente:
-        for cp in competente[:5]:
-            if cp.startswith("CP") or cp.startswith("CPI"):
-                doc.add_paragraph(cp, style="List Bullet")
+    document.add_heading("7. Bibliografie", level=1)
+    add_placeholder(
+        document,
+        "[ Adăugați minim 3 surse bibliografice, dintre care una din ultimii 5 ani ]",
+    )
+
+    return to_bytes(document)
+
+
+def _add_table(document, rows: list[tuple[str, str]]) -> None:
+    table = document.add_table(rows=len(rows), cols=2)
+    table.style = "Table Grid"
+    for index, (label, value) in enumerate(rows):
+        table.cell(index, 0).text = label
+        table.cell(index, 1).text = value
+    document.add_paragraph()
+
+
+def _add_list(document, items: list[str], placeholder: str) -> None:
+    if items:
+        for item in items:
+            document.add_paragraph(item, style="List Bullet")
     else:
-        doc.add_paragraph("[ Completați competențele profesionale ]").italic = True
-
-    doc.add_paragraph()
-
-    doc.add_heading("4. Competențe transversale", level=1)
-    transversale = plan_data.get("competente_transversale", [])
-    if transversale:
-        for ct in transversale[:3]:
-            if ct.startswith("CT"):
-                doc.add_paragraph(ct, style="List Bullet")
-    else:
-        doc.add_paragraph("[ Completați competențele transversale ]").italic = True
-
-    doc.add_paragraph()
-
-    doc.add_heading("5. Conținutul disciplinei", level=1)
-    doc.add_heading("5.1 Curs", level=2)
-    doc.add_paragraph("[ Completați tematica cursului ]").italic = True
-    doc.add_heading("5.2 Seminar/Laborator", level=2)
-    doc.add_paragraph("[ Completați tematica seminarului/laboratorului ]").italic = True
-
-    doc.add_paragraph()
-
-    doc.add_heading("6. Evaluare", level=1)
-    table2 = doc.add_table(rows=3, cols=2)
-    table2.style = "Table Grid"
-    table2.cell(0, 0).text = "Tip activitate"
-    table2.cell(0, 1).text = "Pondere"
-    table2.cell(1, 0).text = plan_data.get("tip_evaluare", "Examen").capitalize()
-    table2.cell(1, 1).text = "60%"
-    table2.cell(2, 0).text = "Activitate laborator/seminar"
-    table2.cell(2, 1).text = "40%"
-
-    doc.add_paragraph()
-
-    doc.add_heading("7. Bibliografie", level=1)
-    doc.add_paragraph(
-        "[ Adăugați minim 3 surse bibliografice, dintre care una din ultimii 5 ani ]"
-    ).italic = True
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
+        add_placeholder(document, placeholder)
+    document.add_paragraph()

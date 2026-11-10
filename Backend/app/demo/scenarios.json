@@ -2,23 +2,24 @@
   "structuri_de_date": {
     "validate": {
       "plan_data": {
-        "credite": 5,
-        "tip_evaluare": "examen",
-        "competente_profesionale": [
+        "credits": 5,
+        "evaluation_type": "examen",
+        "professional_competencies": [
           "CP1. Creează softuri, dezvoltă prototipul pentru software.",
           "CP2. Utilizează șabloane de proiectare de software, creează diagrama de proces.",
           "CP3. Analizează specificații software, definește arhitectura software, proiectează sistemul informatic."
         ],
-        "competente_transversale": [
+        "transversal_competencies": [
           "CT3. Identifică probleme, soluționează probleme.",
           "CT4. Demonstrează angajament, gândește rapid, gândește analitic."
-        ]
+        ],
+        "disciplines": []
       },
       "conflicts": [
         {
-          "tip": "tip_evaluare",
-          "severitate": "error",
-          "mesaj": "⛔ Planul prevede 'Examen', dar FD menționează 'Colocviu'. Vă rugăm să corectați forma de evaluare."
+          "type": "evaluation_type",
+          "severity": "error",
+          "message": "⛔ Planul prevede 'Examen', dar FD menționează 'Colocviu'. Vă rugăm să corectați forma de evaluare."
         }
       ],
       "has_errors": true
@@ -79,29 +80,30 @@
   "analiza_matematica": {
     "validate": {
       "plan_data": {
-        "credite": 5,
-        "tip_evaluare": "examen",
-        "competente_profesionale": [
+        "credits": 5,
+        "evaluation_type": "examen",
+        "professional_competencies": [
           "CP1. Creează softuri, dezvoltă prototipul pentru software.",
           "CP2. Utilizează șabloane de proiectare de software, creează diagrama de proces.",
           "CP3. Analizează specificații software, definește arhitectura software, proiectează sistemul informatic."
         ],
-        "competente_transversale": [
+        "transversal_competencies": [
           "CT3. Identifică probleme, soluționează probleme.",
           "CT4. Demonstrează angajament, gândește rapid, gândește analitic.",
           "CT5. Lucrează în echipe, organizează informații, obiecte și resurse."
-        ]
+        ],
+        "disciplines": []
       },
       "conflicts": [
         {
-          "tip": "competente",
-          "severitate": "warning",
-          "mesaj": "⚠️ Competența CP1 lipsește din FD. Conform Planului de Învățământ, această disciplină trebuie să acopere: 'CP1. Creează softuri, dezvoltă prototipul pentru software.'"
+          "type": "competencies",
+          "severity": "warning",
+          "message": "⚠️ Competența CP1 lipsește din FD. Conform Planului de Învățământ, această disciplină trebuie să acopere: 'CP1. Creează softuri, dezvoltă prototipul pentru software.'"
         },
         {
-          "tip": "competente",
-          "severitate": "warning",
-          "mesaj": "⚠️ Competența CT5 lipsește din FD. Conform Planului de Învățământ, această disciplină trebuie să acopere: 'CT5. Lucrează în echipe, organizează informații, obiecte și resurse.'"
+          "type": "competencies",
+          "severity": "warning",
+          "message": "⚠️ Competența CT5 lipsește din FD. Conform Planului de Învățământ, această disciplină trebuie să acopere: 'CT5. Lucrează în echipe, organizează informații, obiecte și resurse.'"
         }
       ],
       "has_errors": false
@@ -162,17 +164,18 @@
   "sisteme_de_operare": {
     "validate": {
       "plan_data": {
-        "credite": 5,
-        "tip_evaluare": "examen",
-        "competente_profesionale": [
+        "credits": 5,
+        "evaluation_type": "examen",
+        "professional_competencies": [
           "CP1. Creează softuri, dezvoltă prototipul pentru software.",
           "CP2. Utilizează șabloane de proiectare de software, creează diagrama de proces.",
           "CP3. Analizează specificații software, definește arhitectura software, proiectează sistemul informatic."
         ],
-        "competente_transversale": [
+        "transversal_competencies": [
           "CT1. Aplică competente de bază în materie de programare.",
           "CT3. Identifică probleme, soluționează probleme."
-        ]
+        ],
+        "disciplines": []
       },
       "conflicts": [],
       "has_errors": false
