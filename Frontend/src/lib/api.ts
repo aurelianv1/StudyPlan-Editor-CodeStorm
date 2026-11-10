@@ -146,16 +146,26 @@ export async function streamChat(
     if (done) break;
     for (const data of parser.push(decoder.decode(value, { stream: true }))) {
       if (data === SSE_DONE) return answer;
-      try {
-        const { text } = JSON.parse(data);
-        if (typeof text === "string" && text) {
-          answer += text;
-          onText(text);
-        }
-      } catch {
-        // ignore keep-alive or malformed lines
+      const event = parseEvent(data);
+      if (event.error) throw new ApiError(event.error, 502);
+      if (event.text) {
+        answer += event.text;
+        onText(event.text);
       }
     }
   }
   return answer;
+}
+
+/** One event of the chat stream: a piece of the answer, or a failure. */
+function parseEvent(data: string): { text?: string; error?: string } {
+  try {
+    const { text, error } = JSON.parse(data);
+    return {
+      text: typeof text === "string" ? text : undefined,
+      error: typeof error === "string" ? error : undefined,
+    };
+  } catch {
+    return {}; // keep-alive or malformed line
+  }
 }

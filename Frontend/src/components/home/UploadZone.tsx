@@ -3,8 +3,10 @@
 import { useRef, useState, type MouseEvent } from "react";
 
 import { CheckIcon, CloseIcon, UploadIcon } from "@/components/layout/icons";
-import { errorMessage, generateSkeleton } from "@/lib/api";
+import { usePlan } from "@/hooks/usePlan";
+import { errorMessage, generateSkeleton, parsePlan } from "@/lib/api";
 import { downloadBlob } from "@/lib/download";
+import type { PlanData } from "@/lib/types";
 
 type UploadState = "idle" | "dragover" | "uploading" | "success" | "error";
 
@@ -19,35 +21,71 @@ const ZONE_STYLES: Record<UploadState, string> = {
 const RESET_LINK =
   "text-xs text-white/25 hover:text-white/60 transition-colors underline underline-offset-2 mt-1";
 
+function summarize(plan: PlanData): string {
+  const competencies =
+    plan.professional_competencies.length + plan.transversal_competencies.length;
+  const parts = [
+    plan.disciplines.length > 0 && `${plan.disciplines.length} discipline`,
+    plan.credits !== null && `${plan.credits} credite`,
+    plan.evaluation_type,
+    competencies > 0 && `${competencies} competențe`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "Nu am recunoscut date în acest plan.";
+}
+
 /**
- * Drop zone for the study plan. Uploading a plan downloads a discipline
- * sheet skeleton pre-filled from it.
+ * Drop zone for the study plan. The plan is parsed by the backend and kept
+ * for the other pages; a sheet skeleton can then be generated from it.
  */
-export function UploadZone({ onFile }: { onFile: (file: File) => void }) {
-  const [state, setState] = useState<UploadState>("idle");
+export function UploadZone() {
+  const { plan, setPlan, clearPlan } = usePlan();
+  const [activity, setActivity] = useState<UploadState>("idle");
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The file itself only lives in memory; after a reload just its data is known.
+  const [file, setFile] = useState<File | null>(null);
+  const [skeletonBusy, setSkeletonBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // A plan stored earlier shows as uploaded until it is removed.
+  const state: UploadState = activity === "idle" && plan ? "success" : activity;
 
   const reset = (event?: MouseEvent) => {
     event?.stopPropagation();
-    setState("idle");
+    clearPlan();
+    setFile(null);
+    setActivity("idle");
     setName(null);
     setError(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const accept = async (file: File) => {
-    setName(file.name);
-    setState("uploading");
+  const accept = async (picked: File) => {
+    setName(picked.name);
+    setActivity("uploading");
+    setError(null);
+    try {
+      const data = await parsePlan(picked);
+      setPlan({ fileName: picked.name, uploadedAt: new Date().toISOString(), data });
+      setFile(picked);
+      setActivity("idle");
+    } catch (err) {
+      setActivity("error");
+      setError(errorMessage(err));
+    }
+  };
+
+  const downloadSkeleton = async (event: MouseEvent) => {
+    event.stopPropagation();
+    if (!file) return;
+    setSkeletonBusy(true);
     setError(null);
     try {
       downloadBlob(await generateSkeleton(file), "fisa_disciplinei_schelet.docx");
-      setState("success");
-      onFile(file);
     } catch (err) {
-      setState("error");
       setError(errorMessage(err));
+    } finally {
+      setSkeletonBusy(false);
     }
   };
 
@@ -62,18 +100,18 @@ export function UploadZone({ onFile }: { onFile: (file: File) => void }) {
       onKeyDown={(event) => event.key === "Enter" && openPicker()}
       onDragOver={(event) => {
         event.preventDefault();
-        if (state === "idle") setState("dragover");
+        if (state === "idle") setActivity("dragover");
       }}
       onDragLeave={(event) => {
         event.preventDefault();
-        if (state === "dragover") setState("idle");
+        if (state === "dragover") setActivity("idle");
       }}
       onDrop={(event) => {
         event.preventDefault();
         if (state !== "dragover") return;
-        const file = event.dataTransfer.files?.[0];
-        if (file) accept(file);
-        else setState("idle");
+        const dropped = event.dataTransfer.files?.[0];
+        if (dropped) accept(dropped);
+        else setActivity("idle");
       }}
       onClick={openPicker}
       className={`relative w-full max-w-lg mx-auto rounded-xl border transition-all duration-300 select-none ${ZONE_STYLES[state]}`}
@@ -83,8 +121,8 @@ export function UploadZone({ onFile }: { onFile: (file: File) => void }) {
         type="file"
         accept=".docx"
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) accept(file);
+          const picked = event.target.files?.[0];
+          if (picked) accept(picked);
         }}
         className="hidden"
         aria-hidden
@@ -96,8 +134,19 @@ export function UploadZone({ onFile }: { onFile: (file: File) => void }) {
             <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center mb-1 animate-pop-in">
               <CheckIcon className="w-5 h-5 text-black" />
             </span>
-            <p className="text-white text-sm font-semibold">Plan încărcat și validat</p>
-            <p className="text-white/40 text-xs font-mono truncate max-w-xs">{name}</p>
+            <p className="text-white text-sm font-semibold">Plan încărcat</p>
+            <p className="text-white/40 text-xs font-mono truncate max-w-xs">{plan?.fileName}</p>
+            {plan && <p className="text-white/40 text-xs">{summarize(plan.data)}</p>}
+            {file && (
+              <button
+                onClick={downloadSkeleton}
+                disabled={skeletonBusy}
+                className="mt-1 px-4 py-2 rounded-lg bg-white text-black text-xs font-semibold hover:bg-white/90 transition-all active:scale-95 disabled:opacity-40"
+              >
+                {skeletonBusy ? "Se generează..." : "📥 Descarcă scheletul fișei"}
+              </button>
+            )}
+            {error && <p className="text-red-400/80 text-xs max-w-xs">{error}</p>}
             <button onClick={reset} className={RESET_LINK}>
               Remove &amp; upload another
             </button>

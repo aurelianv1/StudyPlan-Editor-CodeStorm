@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import { ArrowLink } from "@/components/home/ArrowLink";
 import { ChatPreview } from "@/components/home/ChatPreview";
 import { DiffPreview } from "@/components/home/DiffPreview";
@@ -13,6 +11,7 @@ import { Divider } from "@/components/layout/Divider";
 import { Footer } from "@/components/layout/Footer";
 import { GridBackground } from "@/components/layout/GridBackground";
 import { ChevronDownIcon } from "@/components/layout/icons";
+import { usePlan } from "@/hooks/usePlan";
 
 const SUPPORT_TOPICS = [
   { icon: "🐛", label: "Bug reports" },
@@ -23,7 +22,7 @@ const SUPPORT_TOPICS = [
 const EYEBROW = "text-xs tracking-[0.25em] uppercase text-white/25";
 
 export default function HomePage() {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const { plan } = usePlan();
 
   return (
     <div className="bg-[#0a0a0a] text-white font-sans">
@@ -59,10 +58,10 @@ export default function HomePage() {
             <p className="text-xs tracking-[0.2em] uppercase text-white/20 mb-5">
               Start by uploading your study plan
             </p>
-            <UploadZone onFile={setUploadedFile} />
-            {uploadedFile && (
+            <UploadZone />
+            {plan && (
               <p className="mt-4 text-xs text-white/25">
-                Plan încărcat — <span className="text-white/60">{uploadedFile.name}</span> ·
+                Plan încărcat — <span className="text-white/60">{plan.fileName}</span> ·
                 Scroll down to choose a tool.
               </p>
             )}
