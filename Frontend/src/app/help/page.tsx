@@ -2,6 +2,9 @@
 
 import React, { useState } from "react";
 
+import { Footer } from "@/components/layout/Footer";
+import { SUPPORT_EMAIL } from "@/lib/config";
+
 type FormState = "idle" | "sending" | "sent" | "error";
 
 interface FormData {
@@ -44,7 +47,7 @@ export default function HelpPage() {
     if (!validate()) return;
     setFormState("sending");
 
-    const mailto = `mailto:support@yourapp.com?subject=${encodeURIComponent(
+    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
       `[${formData.subject}] from ${formData.name}`
     )}&body=${encodeURIComponent(formData.message)}`;
 
@@ -80,16 +83,15 @@ export default function HelpPage() {
           <span className="inline-block mb-4 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] uppercase text-white/25 border border-white/10 rounded-full">
             03 — Support
           </span>
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-[-0.02em] leading-[1.05] mb-4"
-            style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-            We're here if you
+          <h1 className="font-display text-5xl sm:text-6xl font-bold tracking-[-0.02em] leading-[1.05] mb-4">
+            We&apos;re here if you
             <br />
             <span className="text-white/20 italic font-normal">need us.</span>
           </h1>
           <p className="text-white/40 text-sm max-w-md mx-auto leading-relaxed">
             Have a question, spotted a bug, or need help with the platform?
             <br />
-            Fill in the form below and we'll get back to you as soon as possible.
+            Fill in the form below and we&apos;ll get back to you as soon as possible.
           </p>
         </div>
 
@@ -98,17 +100,16 @@ export default function HelpPage() {
           {formState === "sent" ? (
             /* ── Success state ── */
             <div className="flex flex-col items-center py-8 gap-5 text-center">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-white mb-1"
-                style={{ animation: "popIn .35s cubic-bezier(.34,1.56,.64,1) both" }}>
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-white mb-1 animate-pop-in">
                 <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-white">Message sent!</h2>
               <p className="text-white/40 text-sm max-w-sm">
-                Your email client should have opened. If it didn't, please email us directly at{" "}
-                <a href="mailto:support@yourapp.com" className="underline underline-offset-2 text-white/70 font-medium hover:text-white transition-colors">
-                  support@yourapp.com
+                Your email client should have opened. If it didn&apos;t, please email us directly at{" "}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-2 text-white/70 font-medium hover:text-white transition-colors">
+                  {SUPPORT_EMAIL}
                 </a>.
               </p>
               <button
@@ -128,9 +129,9 @@ export default function HelpPage() {
               </div>
               <h2 className="text-2xl font-bold text-white">Something went wrong</h2>
               <p className="text-white/40 text-sm max-w-sm">
-                We couldn't open your email client. Please email us directly at{" "}
-                <a href="mailto:support@yourapp.com" className="underline underline-offset-2 text-white/70 font-medium hover:text-white transition-colors">
-                  support@yourapp.com
+                We couldn&apos;t open your email client. Please email us directly at{" "}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-2 text-white/70 font-medium hover:text-white transition-colors">
+                  {SUPPORT_EMAIL}
                 </a>.
               </p>
               <button
@@ -246,27 +247,15 @@ export default function HelpPage() {
         <p className="text-center text-[10px] text-white/20 mt-8 tracking-wide">
           Or email us directly at{" "}
           <a
-            href="mailto:support@yourapp.com"
+            href={`mailto:${SUPPORT_EMAIL}`}
             className="text-white/50 underline underline-offset-2 font-medium hover:text-white/80 transition-colors"
           >
-            support@yourapp.com
+            {SUPPORT_EMAIL}
           </a>
         </p>
       </div>
 
-      {/* Footer divider */}
-      <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <footer className="py-6 text-center text-[10px] text-white/15 tracking-wider">
-        StudyPlan Editor · Built for universities
-      </footer>
-
-      <style>{`
-        @keyframes popIn {
-          0%   { transform: scale(.4); opacity: 0; }
-          70%  { transform: scale(1.12); }
-          100% { transform: scale(1);  opacity: 1; }
-        }
-      `}</style>
+      <Footer compact />
     </main>
   );
 }

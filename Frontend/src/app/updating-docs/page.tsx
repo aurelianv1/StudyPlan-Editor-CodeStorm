@@ -1,33 +1,75 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useRef, useState, type Ref } from "react";
 
+import { DiffList } from "@/components/doc-editing/DiffList";
+import { FileCard } from "@/components/doc-editing/FileCard";
+import { Footer } from "@/components/layout/Footer";
+import { GridBackground } from "@/components/layout/GridBackground";
 import { compareDocuments, errorMessage, migrateDocuments } from "@/lib/api";
 import { downloadBlob } from "@/lib/download";
 import type { SectionDiff } from "@/lib/types";
 
+type Side = "old" | "template";
+
+const ACTION_BUTTON =
+  "px-5 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200";
+const DISABLED_BUTTON = "bg-white/10 text-white/20 cursor-not-allowed";
+
+interface DocxInputProps {
+  ref: Ref<HTMLInputElement>;
+  label: string;
+  onFile: (file: File) => void;
+}
+
+/** Hidden file input, opened by the toolbar buttons and the file cards. */
+function DocxInput({ ref, label, onFile }: DocxInputProps) {
+  return (
+    <input
+      ref={ref}
+      type="file"
+      accept=".docx"
+      className="hidden"
+      aria-label={label}
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        if (file) onFile(file);
+      }}
+    />
+  );
+}
+
 export default function DocEditingPage() {
   const [oldFile, setOldFile] = useState<File | null>(null);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
-  const [diffData, setDiffData] = useState<SectionDiff[] | null>(null);
+  const [diff, setDiff] = useState<SectionDiff[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const oldInput = useRef<HTMLInputElement>(null);
+  const templateInput = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = useCallback((type: "old" | "template", file: File | null) => {
-    if (type === "old") setOldFile(file);
-    else setTemplateFile(file);
-    setDiffData(null);
+  const ready = Boolean(oldFile && templateFile) && !isLoading;
+
+  const inputFor = (side: Side) => (side === "old" ? oldInput : templateInput).current;
+
+  const openPicker = (side: Side) => inputFor(side)?.click();
+
+  const selectFile = (side: Side, file: File | null) => {
+    // Clear the input when removing, or picking the same file again fires no event.
+    const input = inputFor(side);
+    if (!file && input) input.value = "";
+    (side === "old" ? setOldFile : setTemplateFile)(file);
+    setDiff(null);
     setError(null);
-  }, []);
+  };
 
-  const fetchDiff = async () => {
+  /** Run a backend action on the two files, handling loading and errors. */
+  const run = async (action: (oldDoc: File, template: File) => Promise<void>) => {
     if (!oldFile || !templateFile) return;
     setIsLoading(true);
     setError(null);
-    setDiffData(null);
-
     try {
-      setDiffData(await compareDocuments(oldFile, templateFile));
+      await action(oldFile, templateFile);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -35,61 +77,37 @@ export default function DocEditingPage() {
     }
   };
 
-  const fetchMigrate = async () => {
-    if (!oldFile || !templateFile) return;
-    setIsLoading(true);
-    setError(null);
+  const compare = () =>
+    run(async (oldDoc, template) => {
+      setDiff(null);
+      setDiff(await compareDocuments(oldDoc, template));
+    });
 
-    try {
-      downloadBlob(await migrateDocuments(oldFile, templateFile), "fisa_migrata.docx");
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const migrate = () =>
+    run(async (oldDoc, template) => {
+      downloadBlob(await migrateDocuments(oldDoc, template), "fisa_migrata.docx");
+    });
 
   const resetAll = () => {
-    setOldFile(null);
-    setTemplateFile(null);
-    setDiffData(null);
-    setError(null);
+    selectFile("old", null);
+    selectFile("template", null);
   };
 
-  const statusColor = (status: SectionDiff["status"]) => {
-    switch (status) {
-      case "new": return "bg-emerald-500/10 border-l-2 border-emerald-500/60";
-      case "missing": return "bg-red-500/10 border-l-2 border-red-500/60";
-      case "modified": return "bg-amber-500/10 border-l-2 border-amber-500/60";
-      default: return "border-l-2 border-white/10";
-    }
-  };
-
-  const statusLabel = (status: SectionDiff["status"]) => {
-    switch (status) {
-      case "new": return <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-widest">🟢 Nou</span>;
-      case "missing": return <span className="text-[10px] text-red-400 font-semibold uppercase tracking-widest">🔴 Lipsă</span>;
-      case "modified": return <span className="text-[10px] text-amber-400 font-semibold uppercase tracking-widest">🟡 Modificat</span>;
-      default: return <span className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">⚪ Neschimbat</span>;
-    }
-  };
+  const sides: { side: Side; label: string; icon: string; file: File | null }[] = [
+    { side: "old", label: "Document Vechi", icon: "📄", file: oldFile },
+    { side: "template", label: "Template Nou", icon: "📐", file: templateFile },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
-      <div aria-hidden className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px)",
-          backgroundSize: "80px 80px",
-        }} />
+    <div className="relative min-h-screen bg-[#0a0a0a] text-white font-sans">
+      <GridBackground />
 
       <div className="relative mx-auto max-w-6xl px-8 py-20">
-        {/* Header */}
         <header className="mb-10 text-center">
           <span className="inline-block mb-3 px-3 py-1 text-[10px] font-semibold tracking-[0.2em] uppercase text-white/25 border border-white/10 rounded-full">
             02 — Doc Editing
           </span>
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-[-0.02em] leading-[1.05] mb-4"
-            style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+          <h1 className="font-display text-5xl sm:text-6xl font-bold tracking-[-0.02em] leading-[1.05] mb-4">
             See every change.
             <br />
             <span className="text-white/25 italic font-normal">Miss nothing.</span>
@@ -99,39 +117,32 @@ export default function DocEditingPage() {
           </p>
         </header>
 
-        {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 mb-8 justify-center">
-          <button
-            onClick={() => document.getElementById("dz-old")?.click()}
-            className="px-4 py-2 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 border text-white/60 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/5"
-          >
-            📄 Document Vechi
-          </button>
-          <button
-            onClick={() => document.getElementById("dz-new")?.click()}
-            className="px-4 py-2 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 border text-white/60 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/5"
-          >
-            📐 Template Nou
-          </button>
+          {sides.map(({ side, label, icon }) => (
+            <button
+              key={side}
+              onClick={() => openPicker(side)}
+              className="px-4 py-2 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 border text-white/60 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/5"
+            >
+              {icon} {label}
+            </button>
+          ))}
 
           <button
-            disabled={!oldFile || !templateFile || isLoading}
-            onClick={fetchDiff}
-            className={`px-5 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 ${!oldFile || !templateFile || isLoading
-                ? "bg-white/10 text-white/20 cursor-not-allowed"
-                : "bg-white text-black hover:bg-white/90 active:scale-95"
-              }`}
+            disabled={!ready}
+            onClick={compare}
+            className={`${ACTION_BUTTON} ${
+              ready ? "bg-white text-black hover:bg-white/90 active:scale-95" : DISABLED_BUTTON
+            }`}
           >
             {isLoading ? "⏳ Procesare..." : "⚖️ Compară Diferențe"}
           </button>
-
           <button
-            disabled={!oldFile || !templateFile || isLoading}
-            onClick={fetchMigrate}
-            className={`px-5 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 ${!oldFile || !templateFile || isLoading
-                ? "bg-white/10 text-white/20 cursor-not-allowed"
-                : "bg-emerald-500 text-white hover:bg-emerald-400 active:scale-95"
-              }`}
+            disabled={!ready}
+            onClick={migrate}
+            className={`${ACTION_BUTTON} ${
+              ready ? "bg-emerald-500 text-white hover:bg-emerald-400 active:scale-95" : DISABLED_BUTTON
+            }`}
           >
             {isLoading ? "⏳ Procesare..." : "🔄 Migrează Automat"}
           </button>
@@ -145,64 +156,23 @@ export default function DocEditingPage() {
           </button>
         </div>
 
-        {/* Hidden file inputs */}
-        <input id="dz-old" type="file" accept=".docx" className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFileSelect("old", e.target.files[0])} />
-        <input id="dz-new" type="file" accept=".docx" className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFileSelect("template", e.target.files[0])} />
+        <DocxInput ref={oldInput} label="Document Vechi" onFile={(file) => selectFile("old", file)} />
+        <DocxInput ref={templateInput} label="Template Nou" onFile={(file) => selectFile("template", file)} />
 
-        {/* Upload Area */}
-        {!diffData && !isLoading && (
+        {!diff && !isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-            {[
-              { id: "dz-old", label: "Document Vechi", file: oldFile, type: "old" as const },
-              { id: "dz-new", label: "Template Nou", file: templateFile, type: "template" as const },
-            ].map(({ id, label, file, type }) => (
-              <div
-                key={id}
-                onClick={() => !file && document.getElementById(id)?.click()}
-                className={`relative rounded-xl border transition-all duration-300 cursor-pointer select-none ${file
-                    ? "border-white/30 bg-white/5 cursor-default"
-                    : "border-white/10 hover:border-white/25 hover:bg-white/5"
-                  }`}
-              >
-                <div className="flex flex-col items-center gap-3 py-8 px-6 text-center">
-                  {file ? (
-                    <>
-                      <span className="w-9 h-9 rounded-full bg-white flex items-center justify-center">
-                        <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </span>
-                      <p className="text-white text-sm font-semibold">Încărcat</p>
-                      <p className="text-white/40 text-xs font-mono truncate max-w-[180px]">{file.name}</p>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleFileSelect(type, null); }}
-                        className="text-[10px] text-white/25 hover:text-white/60 transition-colors underline underline-offset-2"
-                      >
-                        Remove
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-9 h-9 rounded-full border border-white/20 flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white/30" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-white/70 text-sm font-medium">{label}</p>
-                        <p className="text-white/25 text-[10px] mt-0.5">DOCX · click to upload</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+            {sides.map(({ side, label, file }) => (
+              <FileCard
+                key={side}
+                label={label}
+                file={file}
+                onPick={() => openPicker(side)}
+                onRemove={() => selectFile(side, null)}
+              />
             ))}
           </div>
         )}
 
-        {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-56 gap-4">
             <div className="w-9 h-9 border-2 border-white/10 border-t-white rounded-full animate-spin" />
@@ -210,55 +180,16 @@ export default function DocEditingPage() {
           </div>
         )}
 
-        {/* Error */}
         {error && (
-          <div className="p-4 rounded-lg border border-red-500/20 bg-red-500/5 text-red-300/80 text-sm text-center mb-6">
+          <div role="alert" className="p-4 rounded-lg border border-red-500/20 bg-red-500/5 text-red-300/80 text-sm text-center mb-6">
             ❌ {error}
           </div>
         )}
 
-        {/* Diff View */}
-        {diffData && (
-          <>
-            <div className="flex flex-col gap-3">
-              {diffData.map((section) => (
-                <div key={section.id} className={`rounded-xl p-5 ${statusColor(section.status)}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-white font-semibold text-sm">{section.title}</h3>
-                    {statusLabel(section.status)}
-                  </div>
-                  {section.content ? (
-                    <p className="text-white/40 text-xs leading-relaxed">{section.content}</p>
-                  ) : (
-                    <p className="text-white/20 text-xs italic">[ Secțiune goală ]</p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Legend */}
-            <div className="mt-6 flex justify-center gap-8 text-[10px] text-white/30">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-sm" />
-                <span>Secțiuni noi</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-red-500/20 border border-red-500/30 rounded-sm" />
-                <span>Secțiuni lipsă</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-amber-500/20 border border-amber-500/30 rounded-sm" />
-                <span>Secțiuni modificate</span>
-              </div>
-            </div>
-          </>
-        )}
+        {diff && <DiffList sections={diff} />}
       </div>
 
-      <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <footer className="py-6 text-center text-[10px] text-white/15 tracking-wider">
-        StudyPlan Editor · Built for universities
-      </footer>
+      <Footer compact />
     </div>
   );
 }
