@@ -2,19 +2,14 @@
 
 import { useState, useCallback } from "react";
 
-const BASE_URL = "http://localhost:8000";
-
-export type Section = {
-  id: string;
-  title: string;
-  content: string;
-  status: "unchanged" | "modified" | "new" | "missing";
-};
+import { compareDocuments, errorMessage, migrateDocuments } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
+import type { SectionDiff } from "@/lib/types";
 
 export default function DocEditingPage() {
   const [oldFile, setOldFile] = useState<File | null>(null);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
-  const [diffData, setDiffData] = useState<Section[] | null>(null);
+  const [diffData, setDiffData] = useState<SectionDiff[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,24 +27,9 @@ export default function DocEditingPage() {
     setDiffData(null);
 
     try {
-      const formData = new FormData();
-      formData.append("old_doc", oldFile);
-      formData.append("new_template", templateFile);
-
-      const response = await fetch(`${BASE_URL}/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(errText || "Backend-ul nu a putut procesa documentele.");
-      }
-
-      const data = await response.json();
-      setDiffData(data.sections);
+      setDiffData(await compareDocuments(oldFile, templateFile));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "A apărut o eroare necunoscută.");
+      setError(errorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -61,29 +41,9 @@ export default function DocEditingPage() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("old_doc", oldFile);
-      formData.append("new_template", templateFile);
-
-      const response = await fetch(`${BASE_URL}/migrate`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(errText || "Migrare eșuată.");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "fisa_migrata_2025.docx";
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(await migrateDocuments(oldFile, templateFile), "fisa_migrata.docx");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "A apărut o eroare necunoscută.");
+      setError(errorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +56,7 @@ export default function DocEditingPage() {
     setError(null);
   };
 
-  const statusColor = (status: Section["status"]) => {
+  const statusColor = (status: SectionDiff["status"]) => {
     switch (status) {
       case "new": return "bg-emerald-500/10 border-l-2 border-emerald-500/60";
       case "missing": return "bg-red-500/10 border-l-2 border-red-500/60";
@@ -105,7 +65,7 @@ export default function DocEditingPage() {
     }
   };
 
-  const statusLabel = (status: Section["status"]) => {
+  const statusLabel = (status: SectionDiff["status"]) => {
     switch (status) {
       case "new": return <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-widest">🟢 Nou</span>;
       case "missing": return <span className="text-[10px] text-red-400 font-semibold uppercase tracking-widest">🔴 Lipsă</span>;

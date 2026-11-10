@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
-const BASE_URL = "http://localhost:8000";
+import { errorMessage, generateSkeleton } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -129,33 +130,14 @@ function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }
     setErrorMsg(null);
 
     try {
-      const formData = new FormData();
-      formData.append("plan_doc", file);
-
-      const res = await fetch(`${BASE_URL}/generate`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || "Eroare la procesare.");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "fisa_disciplinei_schelet.docx";
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(await generateSkeleton(file), "fisa_disciplinei_schelet.docx");
 
       setState("success");
       setStatusLabel("");
       onFile(file);
     } catch (err) {
       setState("error");
-      setErrorMsg(err instanceof Error ? err.message : "A apărut o eroare.");
+      setErrorMsg(errorMessage(err));
     }
   };
 
@@ -188,7 +170,7 @@ function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }
       <input
         ref={ref}
         type="file"
-        accept=".pdf,.doc,.docx,.xlsx,.xls"
+        accept=".docx"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) accept(f); }}
         className="hidden"
         aria-hidden
@@ -247,7 +229,7 @@ function UploadZone({ onFile }: { onFile: (f: File, uploadId?: string) => void }
               <p className="text-white/80 text-sm font-medium">
                 {state === "dragover" ? "Drop to upload" : "Upload your university's studies plan"}
               </p>
-              <p className="text-white/25 text-xs mt-1">PDF, DOC, DOCX, XLSX · drag & drop or click</p>
+              <p className="text-white/25 text-xs mt-1">DOCX · drag & drop or click</p>
             </div>
           </>
         )}

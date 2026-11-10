@@ -2,18 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 
-const BASE_URL = "http://localhost:8000";
-
-type ChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
-
-type Section = {
-  id: string;
-  title: string;
-  content: string;
-};
+import { errorMessage, exportSections, streamChat } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
+import type { ChatMessage, Section } from "@/lib/types";
 
 const DEFAULT_SECTIONS: Section[] = [
   { id: "1", title: "Date despre disciplină", content: "Structuri de Date, Conf. dr. Ion Popescu, Anul I, Semestrul 2, Examen, 5 credite" },
@@ -60,57 +51,17 @@ export default function AIEditingPage() {
     let fullResponse = "";
 
     try {
-      const response = await fetch(`${BASE_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: message }],
-          document: documentText,
-          plan_data: {
-            credite: 5,
-            tip_evaluare: "examen",
-            competente_profesionale: [
-              "CP1. Creează softuri, dezvoltă prototipul pentru software.",
-              "CP2. Utilizează șabloane de proiectare de software.",
-              "CP3. Analizează specificații software.",
-            ],
-          },
-        }),
-      });
-
-      if (!response.ok) throw new Error("Eroare de la server.");
-
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const data = JSON.parse(line.replace("data: ", ""));
-              if (data.text) {
-                fullResponse += data.text;
-                setChatHistory((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: "assistant",
-                    content: fullResponse,
-                  };
-                  return updated;
-                });
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
-      }
+      fullResponse = await streamChat(
+        { messages: [{ role: "user", content: message }], document: documentText },
+        (text) => {
+          fullResponse += text;
+          const partial = fullResponse;
+          setChatHistory((prev) => [
+            ...prev.slice(0, -1),
+            { role: "assistant", content: partial },
+          ]);
+        },
+      );
 
       // După ce AI-ul a răspuns, actualizăm secțiunile din document
       updateDocumentFromResponse(fullResponse, message);
@@ -120,7 +71,7 @@ export default function AIEditingPage() {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
-          content: `❌ Eroare: ${err instanceof Error ? err.message : "Eroare necunoscută"}`,
+          content: `❌ Eroare: ${errorMessage(err)}`,
         };
         return updated;
       });
@@ -172,21 +123,7 @@ export default function AIEditingPage() {
 
   const exportDocument = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/export`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sections }),
-      });
-
-      if (!response.ok) throw new Error("Export eșuat.");
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "fisa_disciplinei_final.docx";
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(await exportSections(sections), "fisa_disciplinei_final.docx");
     } catch (err) {
       console.error(err);
     }
