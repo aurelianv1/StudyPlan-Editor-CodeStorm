@@ -37,8 +37,12 @@ def _plan_context(plan: PlanData | None) -> str:
     )
 
 
-def sse_event(text: str) -> str:
+def sse_text(text: str) -> str:
     return f"data: {json.dumps({'text': text})}\n\n"
+
+
+def sse_error(message: str) -> str:
+    return f"data: {json.dumps({'error': message})}\n\n"
 
 
 def stream_chat(
@@ -46,8 +50,8 @@ def stream_chat(
 ) -> Iterator[str]:
     """Yield server-sent events with the assistant's reply, chunk by chunk.
 
-    Failures are reported inside the stream, because by the time they happen
-    the HTTP status line has already been sent.
+    Failures are sent as {"error": ...} events inside the stream, because by
+    the time they happen the HTTP status line has already been sent.
     """
     payload = {
         "model": settings.groq_model,
@@ -71,16 +75,19 @@ def stream_chat(
             timeout=(CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
         ) as response:
             if response.status_code != 200:
-                yield sse_event(f"Eroare API ({response.status_code}): {response.text}")
+                yield sse_error(
+                    f"Serviciul AI a răspuns cu eroarea {response.status_code}: "
+                    f"{response.text}"
+                )
             else:
                 for line in response.iter_lines():
                     text = _delta_text(line)
                     if text is None:
                         break
                     if text:
-                        yield sse_event(text)
+                        yield sse_text(text)
     except requests.RequestException as error:
-        yield sse_event(f"Eroare de conexiune cu serviciul AI: {error}")
+        yield sse_error(f"Eroare de conexiune cu serviciul AI: {error}")
 
     yield SSE_DONE
 

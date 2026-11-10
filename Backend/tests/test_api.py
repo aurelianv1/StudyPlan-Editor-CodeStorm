@@ -197,12 +197,13 @@ def chunk(text: str) -> bytes:
     return f"data: {json.dumps(payload)}".encode()
 
 
-def events(response) -> list[str]:
-    return [
-        json.loads(line[len("data: ") :])["text"]
+def events(response, field: str = "text") -> list[str]:
+    payloads = [
+        json.loads(line[len("data: ") :])
         for line in response.text.splitlines()
         if line.startswith("data: ") and line != "data: [DONE]"
     ]
+    return [payload[field] for payload in payloads if field in payload]
 
 
 def test_chat_without_an_api_key_is_unavailable(client):
@@ -239,6 +240,7 @@ def test_chat_streams_the_reply_and_sends_the_context(make_client, monkeypatch):
     system, user = sent["json"]["messages"]
     assert system["role"] == "system"
     assert "## Obiective" in system["content"] and "Credite: 5" in system["content"]
+    assert "[[SECTIUNE:" in system["content"]
     assert user == {"role": "user", "content": "Salut"}
     assert sent["timeout"]
 
@@ -251,7 +253,8 @@ def test_chat_reports_upstream_errors_inside_the_stream(make_client, monkeypatch
     )
     response = make_client(GROQ_API_KEY="bad").post("/chat", json=CHAT)
     assert response.status_code == 200
-    assert "401" in events(response)[0]
+    assert events(response) == []
+    assert "401" in events(response, "error")[0]
 
 
 def test_chat_reports_connection_failures(make_client, monkeypatch):
@@ -260,7 +263,7 @@ def test_chat_reports_connection_failures(make_client, monkeypatch):
 
     monkeypatch.setattr(chat_service.requests, "post", unreachable)
     response = make_client(GROQ_API_KEY="key").post("/chat", json=CHAT)
-    assert "conexiune" in events(response)[0]
+    assert "conexiune" in events(response, "error")[0]
 
 
 def test_clients_cannot_inject_system_messages(make_client):
